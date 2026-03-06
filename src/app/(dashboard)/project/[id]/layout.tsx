@@ -14,11 +14,11 @@ export default async function ProjectLayout({
 
   if (!user) redirect('/login')
 
+  // RLS handles access: returns data only if user is owner OR project_member
   const { data: project } = await supabase
     .from('projects')
     .select('id')
     .eq('id', id)
-    .eq('user_id', user.id)
     .single()
 
   if (!project) notFound()
