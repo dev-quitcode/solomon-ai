@@ -30,9 +30,15 @@ export default function ProjectMembersPanel() {
   const [inviting, setInviting] = useState(false)
 
   async function load() {
-    const res = await fetch(`/api/projects/${id}/members`)
-    if (res.ok) setData(await res.json())
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/projects/${id}/members`)
+      if (res.ok) setData(await res.json())
+      else toast.error('Failed to load members')
+    } catch {
+      toast.error('Failed to load members')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [id])
