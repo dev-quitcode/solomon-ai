@@ -11,23 +11,62 @@ import {
 
 // ─── PDF via browser print window ────────────────────────────────────────────
 
+const inlineFormat = (text: string) =>
+  text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+
+const isTableRow = (line: string) => line.startsWith('|') && line.endsWith('|')
+const isSeparatorRow = (line: string) => /^\|[\s|:-]+\|$/.test(line)
+
+function parseTableRow(line: string): string[] {
+  return line.slice(1, -1).split('|').map(c => c.trim())
+}
+
 function markdownToHtml(markdown: string): string {
   const lines = markdown.split('\n')
   const html: string[] = []
   let inList = false
+  let inTable = false
+  let tableHeaderDone = false
 
   const closeList = () => {
     if (inList) { html.push('</ul>'); inList = false }
   }
+  const closeTable = () => {
+    if (inTable) { html.push('</tbody></table>'); inTable = false; tableHeaderDone = false }
+  }
 
-  const inlineFormat = (text: string) =>
-    text
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code>$1</code>')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd()
 
-  for (const raw of lines) {
-    const line = raw.trimEnd()
+    // Table handling
+    if (isTableRow(line)) {
+      // Check if next line is separator (means current line is header)
+      const next = lines[i + 1]?.trimEnd() ?? ''
+      if (!inTable && isSeparatorRow(next)) {
+        closeList()
+        html.push('<table><thead><tr>')
+        for (const cell of parseTableRow(line))
+          html.push(`<th>${inlineFormat(cell)}</th>`)
+        html.push('</tr></thead><tbody>')
+        inTable = true
+        tableHeaderDone = true
+        i++ // skip separator row
+        continue
+      } else if (isSeparatorRow(line)) {
+        continue // skip stray separator
+      } else if (inTable) {
+        html.push('<tr>')
+        for (const cell of parseTableRow(line))
+          html.push(`<td>${inlineFormat(cell)}</td>`)
+        html.push('</tr>')
+        continue
+      }
+    } else {
+      closeTable()
+    }
 
     if (line.startsWith('### ')) {
       closeList(); html.push(`<h3>${inlineFormat(line.slice(4))}</h3>`)
@@ -38,6 +77,8 @@ function markdownToHtml(markdown: string): string {
     } else if (line.match(/^[-*] /)) {
       if (!inList) { html.push('<ul>'); inList = true }
       html.push(`<li>${inlineFormat(line.slice(2))}</li>`)
+    } else if (line.match(/^\d+\. /)) {
+      closeList(); html.push(`<p>${inlineFormat(line)}</p>`)
     } else if (line === '---') {
       closeList(); html.push('<hr>')
     } else if (line === '') {
@@ -48,6 +89,7 @@ function markdownToHtml(markdown: string): string {
   }
 
   closeList()
+  closeTable()
   return html.join('\n')
 }
 
@@ -75,19 +117,39 @@ export function downloadAsPDF(title: string, markdown: string) {
       margin: 40px auto;
       padding: 0 24px;
     }
-    h1 { font-size: 22pt; margin: 0 0 16px; padding-bottom: 8px; border-bottom: 2px solid #ddd; }
-    h2 { font-size: 15pt; margin: 28px 0 8px; }
-    h3 { font-size: 12pt; margin: 20px 0 6px; }
+    h1 { font-size: 22pt; margin: 0 0 16px; padding-bottom: 8px; border-bottom: 2px solid #ccc; }
+    h2 { font-size: 15pt; margin: 28px 0 8px; color: #222; }
+    h3 { font-size: 12pt; font-weight: 700; margin: 18px 0 5px; color: #333; }
     p  { margin-bottom: 10px; }
     ul { padding-left: 22px; margin-bottom: 10px; }
     li { margin-bottom: 3px; }
     strong { font-weight: 700; }
     em { font-style: italic; }
     code { background: #f4f4f4; padding: 1px 4px; font-family: monospace; font-size: 10pt; border-radius: 2px; }
-    hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 24px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 20px;
+      font-size: 11pt;
+    }
+    th {
+      background: #f0f0f0;
+      font-weight: 700;
+      text-align: left;
+      padding: 7px 10px;
+      border: 1px solid #bbb;
+    }
+    td {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #fafafa; }
     @media print {
       body { margin: 20px; }
-      h2 { page-break-after: avoid; }
+      h2, h3 { page-break-after: avoid; }
+      table { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -95,11 +157,10 @@ export function downloadAsPDF(title: string, markdown: string) {
 </html>`)
 
   printWindow.document.close()
-  printWindow.onload = () => {
-    printWindow.focus()
+  printWindow.focus()
+  printWindow.setTimeout(() => {
     printWindow.print()
-    printWindow.close()
-  }
+  }, 400)
 }
 
 // ─── DOCX via docx library ────────────────────────────────────────────────────

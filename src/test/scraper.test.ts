@@ -14,20 +14,33 @@ function makeResponse(html: string, ok = true, status = 200) {
   }
 }
 
+/**
+ * Make Jina AI fail so scrapeWebsite falls through to scrapeDirect,
+ * which uses the provided HTML response for the direct URL.
+ */
+function setupMockFetch(html: string, ok = true, status = 200) {
+  mockFetch.mockImplementation((url: string) => {
+    if (String(url).includes('jina.ai')) {
+      return Promise.reject(new Error('Jina unavailable'))
+    }
+    return Promise.resolve(makeResponse(html, ok, status))
+  })
+}
+
 beforeEach(() => {
   mockFetch.mockReset()
 })
 
 describe('scrapeWebsite', () => {
   it('extracts title and body content from a simple page', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title>Solomon Test Page</title></head>
         <body>
           <main>This is the main content of the page.</main>
         </body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com')
     expect(result.title).toBe('Solomon Test Page')
@@ -35,7 +48,7 @@ describe('scrapeWebsite', () => {
   })
 
   it('falls back to h1 when title tag is empty', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title></title></head>
         <body>
@@ -43,26 +56,26 @@ describe('scrapeWebsite', () => {
           <main>Some content here.</main>
         </body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com')
     expect(result.title).toBe('Page Heading')
   })
 
   it('falls back to URL when both title and h1 are empty', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head></head>
         <body><main>Content here.</main></body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com/page')
     expect(result.title).toBe('https://example.com/page')
   })
 
   it('removes script and style tags from content', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title>Test</title></head>
         <body>
@@ -73,7 +86,7 @@ describe('scrapeWebsite', () => {
           </main>
         </body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com')
     expect(result.content).not.toContain('alert')
@@ -82,7 +95,7 @@ describe('scrapeWebsite', () => {
   })
 
   it('removes nav, footer, and header elements', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title>Test</title></head>
         <body>
@@ -92,7 +105,7 @@ describe('scrapeWebsite', () => {
           <footer>Site Footer</footer>
         </body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com')
     expect(result.content).not.toContain('Site Header')
@@ -102,42 +115,42 @@ describe('scrapeWebsite', () => {
   })
 
   it('throws when the HTTP response is not ok', async () => {
-    mockFetch.mockResolvedValue(makeResponse('', false, 404))
+    setupMockFetch('', false, 404)
 
     await expect(scrapeWebsite('https://example.com/missing'))
       .rejects.toThrow('Failed to fetch URL: 404')
   })
 
   it('throws when no readable content is found', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title>Empty</title></head>
         <body>
           <script>let x = 1;</script>
         </body>
       </html>
-    `))
+    `)
 
     await expect(scrapeWebsite('https://example.com'))
       .rejects.toThrow('No readable content found')
   })
 
   it('collapses multiple whitespace characters into single spaces', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title>Test</title></head>
         <body>
           <main>   Word1   Word2    Word3   </main>
         </body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com')
     expect(result.content).toBe('Word1 Word2 Word3')
   })
 
   it('prefers <article> over <body> for content extraction', async () => {
-    mockFetch.mockResolvedValue(makeResponse(`
+    setupMockFetch(`
       <html>
         <head><title>Blog Post</title></head>
         <body>
@@ -145,14 +158,14 @@ describe('scrapeWebsite', () => {
           <article>Main article content here.</article>
         </body>
       </html>
-    `))
+    `)
 
     const result = await scrapeWebsite('https://example.com')
     expect(result.content).toContain('Main article content')
   })
 
   it('sends the correct User-Agent header', async () => {
-    mockFetch.mockResolvedValue(makeResponse('<html><head><title>T</title></head><body><main>C</main></body></html>'))
+    setupMockFetch('<html><head><title>T</title></head><body><main>C</main></body></html>')
 
     await scrapeWebsite('https://example.com')
 

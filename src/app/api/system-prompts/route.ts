@@ -22,8 +22,8 @@ export async function PATCH(request: Request) {
   const { stage, content } = await request.json()
   const { data, error } = await supabase
     .from('system_prompts')
-    .update({ content, updated_by: user.id, updated_at: new Date().toISOString() })
-    .eq('stage', stage).select().single()
+    .upsert({ stage, content, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: 'stage' })
+    .select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
