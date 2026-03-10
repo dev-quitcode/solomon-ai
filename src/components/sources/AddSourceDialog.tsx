@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, FileText, Globe, AlignLeft, MessageSquare, ChevronDown } from 'lucide-react'
+import { Plus, FileText, Globe, AlignLeft, MessageSquare, Phone, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,25 +16,28 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import TextSourceForm from './TextSourceForm'
+import CallTranscriptForm from './CallTranscriptForm'
 import FileUploadForm from './FileUploadForm'
 import WebsiteSourceForm from './WebsiteSourceForm'
 import QuestionnaireForm from './QuestionnaireForm'
 import type { DataSource } from '@/types'
 
-type SourceType = 'file' | 'website' | 'text' | 'questionnaire'
+type SourceType = 'file' | 'website' | 'text' | 'questionnaire' | 'call_transcript'
 
 const SOURCE_TYPES: { value: SourceType; label: string; description: string; icon: React.ElementType }[] = [
-  { value: 'file',          label: 'File',        description: 'PDF, JSON schema, or text file', icon: FileText },
-  { value: 'website',       label: 'Website',     description: 'Scrape a URL',                   icon: Globe },
+  { value: 'file',           label: 'File',             description: 'PDF, JSON schema, or text file', icon: FileText },
+  { value: 'call_transcript', label: 'Call Transcript', description: 'Upload file or paste text',    icon: Phone },
+  { value: 'website',        label: 'Website',          description: 'Scrape a URL',                icon: Globe },
   { value: 'text',          label: 'Text',        description: 'Paste notes or a transcript',    icon: AlignLeft },
   { value: 'questionnaire', label: 'Interview',   description: 'Structured BA questionnaire',    icon: MessageSquare },
 ]
 
 const DIALOG_TITLES: Record<SourceType, string> = {
-  file:          'Upload file',
-  website:       'Add website',
-  text:          'Paste text',
-  questionnaire: 'BA questionnaire',
+  file:             'Upload file',
+  call_transcript:  'Call transcript',
+  website:          'Add website',
+  text:             'Paste text',
+  questionnaire:    'BA questionnaire',
 }
 
 interface Props {
@@ -83,7 +86,8 @@ export default function AddSourceDialog({ projectId, onAdded }: Props) {
             <DialogTitle>{activeType ? DIALOG_TITLES[activeType] : ''}</DialogTitle>
           </DialogHeader>
           <div className="mt-2">
-            {activeType === 'file'          && <FileUploadForm    projectId={projectId} onAdded={handleAdded} />}
+            {activeType === 'file'             && <FileUploadForm      projectId={projectId} onAdded={handleAdded} />}
+          {activeType === 'call_transcript'  && <CallTranscriptForm  projectId={projectId} onAdded={handleAdded} />}
             {activeType === 'website'       && <WebsiteSourceForm projectId={projectId} onAdded={handleAdded} />}
             {activeType === 'text'          && <TextSourceForm    projectId={projectId} onAdded={handleAdded} />}
             {activeType === 'questionnaire' && <QuestionnaireForm projectId={projectId} onAdded={handleAdded} />}
