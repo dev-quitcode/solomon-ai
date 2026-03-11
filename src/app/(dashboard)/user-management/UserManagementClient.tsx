@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
+// Local interface rather than Profile from @/types because Profile does not include `email`,
+// which is required here for display purposes.
 interface AdminUser {
   user_id: string
   email: string
@@ -27,6 +29,13 @@ interface AdminProject {
   type: string
   user_id: string
   created_at: string
+}
+
+function formatRelative(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '—'
+  return formatDistanceToNow(d, { addSuffix: true })
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -52,8 +61,9 @@ export default function UserManagementClient() {
     ]).then(([u, p]) => {
       setUsers(Array.isArray(u) ? u : [])
       setProjects(Array.isArray(p) ? p : [])
-    }).catch(() => {
-      // Server-side authorization check will handle 403 responses
+    }).catch((err) => {
+      console.error('Failed to load data', err)
+      toast.error('Failed to load users and projects')
     }).finally(() => setLoading(false))
   }, [])
 
@@ -157,7 +167,7 @@ export default function UserManagementClient() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                        {formatRelative(user.created_at)}
                       </TableCell>
                       <TableCell>
                         <Select
@@ -214,7 +224,7 @@ export default function UserManagementClient() {
                         </span>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(project.created_at), { addSuffix: true })}
+                        {formatRelative(project.created_at)}
                       </TableCell>
                     </TableRow>
                   ))}
