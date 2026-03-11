@@ -6,7 +6,6 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = await createAdminClient()
   const body = await request.json()
   const { full_name, email, password, current_password } = body
 
@@ -22,6 +21,7 @@ export async function PATCH(request: Request) {
 
   // Update email (admin client bypasses session constraints for server-side update)
   if (email) {
+    const admin = await createAdminClient()
     const { error } = await admin.auth.admin.updateUserById(user.id, { email })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ message: 'Check your inbox to confirm the new email address.' })
@@ -32,14 +32,18 @@ export async function PATCH(request: Request) {
     if (!current_password) {
       return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
     }
+    if (!user.email) {
+      return NextResponse.json({ error: 'Cannot verify password: user has no email' }, { status: 400 })
+    }
     // Verify current password first using anon client (requires valid session)
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email!,
+      email: user.email,
       password: current_password,
     })
     if (signInError) {
       return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
     }
+    const admin = await createAdminClient()
     const { error } = await admin.auth.admin.updateUserById(user.id, { password })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ message: 'Password updated successfully' })
