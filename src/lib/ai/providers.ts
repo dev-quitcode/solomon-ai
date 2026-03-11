@@ -31,7 +31,7 @@ export async function generateText(options: GenerateOptions): Promise<string> {
     const message = await client.messages.create({
       model: modelId,
       max_tokens: options.maxTokens,
-      system: options.systemPrompt,
+      ...(options.systemPrompt ? { system: options.systemPrompt } : {}),
       messages: [{ role: 'user', content: options.userPrompt }],
     })
     return message.content[0].type === 'text' ? message.content[0].text : ''
