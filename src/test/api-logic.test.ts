@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { parseModel } from '@/lib/ai/providers'
 
 /**
  * Tests for extractable business logic from API routes.
@@ -213,6 +214,32 @@ describe('Questionnaire formatting', () => {
     // 10 questions × 2 parts (bold header + answer) but joined = alternating items...
     // Actually: each Q&A is "**Q**\nA", joined by \n\n, so 10 sections
     expect(sections).toHaveLength(10)
+  })
+})
+
+// ──────────────────────────────────────────────────────────────
+// parseModel (from src/lib/ai/providers.ts)
+// ──────────────────────────────────────────────────────────────
+
+describe('parseModel', () => {
+  it('parses anthropic prefix', () => {
+    expect(parseModel('anthropic:claude-sonnet-4-6')).toEqual({ provider: 'anthropic', modelId: 'claude-sonnet-4-6' })
+  })
+
+  it('parses openai prefix', () => {
+    expect(parseModel('openai:gpt-4o')).toEqual({ provider: 'openai', modelId: 'gpt-4o' })
+  })
+
+  it('parses google prefix', () => {
+    expect(parseModel('google:gemini-2.0-flash')).toEqual({ provider: 'google', modelId: 'gemini-2.0-flash' })
+  })
+
+  it('treats bare string (no colon) as anthropic — backwards compat', () => {
+    expect(parseModel('claude-sonnet-4-6')).toEqual({ provider: 'anthropic', modelId: 'claude-sonnet-4-6' })
+  })
+
+  it('handles model ids that contain colons (takes first colon as separator)', () => {
+    expect(parseModel('openai:ft:gpt-4:custom')).toEqual({ provider: 'openai', modelId: 'ft:gpt-4:custom' })
   })
 })
 
