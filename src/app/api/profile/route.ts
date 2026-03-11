@@ -1,0 +1,49 @@
+import { NextResponse } from 'next/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+
+export async function PATCH(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = await createAdminClient()
+  const body = await request.json()
+  const { full_name, email, password, current_password } = body
+
+  // Update full name
+  if (full_name !== undefined) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ full_name: full_name?.trim() || null })
+      .eq('user_id', user.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!email && !password) return NextResponse.json({ message: 'Name updated' })
+  }
+
+  // Update email (admin client bypasses session constraints for server-side update)
+  if (email) {
+    const { error } = await admin.auth.admin.updateUserById(user.id, { email })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ message: 'Check your inbox to confirm the new email address.' })
+  }
+
+  // Update password
+  if (password) {
+    if (!current_password) {
+      return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
+    }
+    // Verify current password first using anon client (requires valid session)
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: current_password,
+    })
+    if (signInError) {
+      return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+    }
+    const { error } = await admin.auth.admin.updateUserById(user.id, { password })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ message: 'Password updated successfully' })
+  }
+
+  return NextResponse.json({ message: 'Profile updated' })
+}
