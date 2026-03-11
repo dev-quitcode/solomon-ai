@@ -27,7 +27,7 @@ Models are identified by a `provider:model-id` string stored in `user_settings.m
 | OpenAI | `openai:gpt-4o` |
 | Google | `google:gemini-2.0-flash` |
 
-This format requires no separate provider column. Existing rows default to `claude-sonnet-4-6` (bare string, no prefix) — the provider layer treats bare strings as Anthropic for backwards compatibility.
+This format requires no separate provider column. Existing DB rows may have bare strings like `claude-sonnet-4-6` (no prefix) — the provider layer treats these as Anthropic for backwards compatibility. The `DEFAULT_MODEL` constant in `client.ts` and all hardcoded fallbacks are updated to `anthropic:claude-sonnet-4-6` going forward.
 
 ### Provider Abstraction Layer
 
@@ -77,7 +77,7 @@ Response shape:
 **Per-provider fetching strategy:**
 
 - **Anthropic** — no public models API. Returns a curated hardcoded list of current production models.
-- **OpenAI** — `GET https://api.openai.com/v1/models`, filtered to chat-capable models (id starts with `gpt-` or `o1` or `o3`), sorted by id descending.
+- **OpenAI** — `GET https://api.openai.com/v1/models` using the `openai` SDK's `client.models.list()`. Filtered to chat-capable models: keep only models whose id matches `/^(gpt-|o1|o3)/`. If the filter produces zero results (e.g. future naming changes), return the full unfiltered list. Sorted alphabetically descending by id.
 - **Google Gemini** — `GET https://generativelanguage.googleapis.com/v1beta/models?key={key}`, filtered to `generateContent`-capable models.
 
 The route is server-side to avoid CORS issues with direct browser calls to provider APIs.
@@ -95,7 +95,9 @@ alter table public.user_settings
 
 **`/api/settings` GET** — updated select to include new key columns.
 
-**`/api/settings` PATCH** — updated to accept and upsert `openai_api_key` and `gemini_api_key`.
+**`/api/settings` POST** — the existing route uses POST for upsert (not PATCH — this is the established pattern in the codebase). Updated to accept and upsert `openai_api_key` and `gemini_api_key`.
+
+**Existing `user_settings` columns** (for reference): `user_id`, `anthropic_api_key`, `voyage_api_key`, `tavily_api_key` (unused legacy column, leave as-is), `model`, `updated_at`.
 
 ### Settings UI Changes
 
@@ -116,14 +118,19 @@ or:
 { "password": "newpassword", "current_password": "oldpassword" }
 ```
 
-Uses `supabase.auth.updateUser()`. Email changes trigger Supabase's built-in confirmation email flow — the change is pending until confirmed. Password changes re-authenticate with the current password first using `supabase.auth.signInWithPassword()` before updating.
+Uses server-side Supabase client (`createClient()` with service role for auth operations).
+
+- **Email:** `supabase.auth.admin.updateUserById(userId, { email })` — triggers Supabase's built-in confirmation email. The change is pending until the user clicks the confirmation link.
+- **Password:** First verify current password via `supabase.auth.signInWithPassword({ email, password: current_password })` using the user's current email (read from `supabase.auth.getUser()`). If that succeeds, call `supabase.auth.admin.updateUserById(userId, { password })`.
+
+Current email is retrieved from `(await supabase.auth.getUser()).data.user.email`.
 
 ### Profile Tab (Settings Page)
 
 New "Profile" tab alongside the existing "AI Settings" tab. Contains:
 
 - **Full name** — reads from `profiles.full_name`, editable, saves via existing `profiles` table update.
-- **Email** — current email shown, new email input, "Send confirmation email" button. Shows a success message explaining the user must confirm via email.
+- **Email** — current email shown (from `supabase.auth.getUser()`), new email input, "Send confirmation email" button. Shows a success message: "Check your inbox to confirm the new email address."
 - **Password** — new password + confirm fields. Requires current password for verification.
 
 Each section has its own save/submit action — name, email, and password are independent forms.
@@ -152,7 +159,7 @@ Each section has its own save/submit action — name, email, and password are in
 
 ## Error Handling
 
-- If the selected model's provider key is missing at generation time → HTTP 400 with a clear message directing user to settings
+- Provider key validation happens inside `generateText()` — if the required key for the parsed provider is missing or empty, throw an error with message `"No API key configured for {provider}. Add it in Settings."`. The AI routes' existing `try/catch` returns this as HTTP 400.
 - If a provider's model-fetch API returns an error → that provider is silently excluded from the list (don't block the settings page)
 - Invalid `provider:model` prefix → falls back to Anthropic behaviour with an error log
 - Email already in use → surface Supabase error message to user
