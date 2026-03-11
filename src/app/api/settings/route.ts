@@ -12,7 +12,14 @@ export async function GET() {
     .eq('user_id', user.id)
     .single()
 
-  return NextResponse.json(data ?? { user_id: user.id, anthropic_api_key: null, voyage_api_key: null, model: 'claude-sonnet-4-6' })
+  return NextResponse.json(data ?? {
+    user_id: user.id,
+    anthropic_api_key: null,
+    openai_api_key: null,
+    gemini_api_key: null,
+    voyage_api_key: null,
+    model: 'anthropic:claude-sonnet-4-6',
+  })
 }
 
 export async function POST(request: Request) {
@@ -21,15 +28,17 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { anthropic_api_key, voyage_api_key, model } = body
+  const { anthropic_api_key, openai_api_key, gemini_api_key, voyage_api_key, model } = body
 
   const { data, error } = await supabase
     .from('user_settings')
     .upsert({
       user_id: user.id,
       anthropic_api_key: anthropic_api_key?.trim() || null,
+      openai_api_key: openai_api_key?.trim() || null,
+      gemini_api_key: gemini_api_key?.trim() || null,
       voyage_api_key: voyage_api_key?.trim() || null,
-      model: model ?? 'claude-sonnet-4-6',
+      model: model ?? 'anthropic:claude-sonnet-4-6',
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     .select()

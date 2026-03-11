@@ -192,6 +192,8 @@ export interface ProjectPrompt {
 export interface UserSettings {
   user_id: string
   anthropic_api_key: string | null
+  openai_api_key: string | null
+  gemini_api_key: string | null
   voyage_api_key: string | null
   model: string
 }
