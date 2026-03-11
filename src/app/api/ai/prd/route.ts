@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAnthropicClient } from '@/lib/ai/client'
+import { generateText } from '@/lib/ai/providers'
 import { truncateContent } from '@/lib/utils/files'
 
 export async function POST(request: Request) {
@@ -18,10 +18,7 @@ export async function POST(request: Request) {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
   const { data: settings } = await supabase
-    .from('user_settings').select('anthropic_api_key, model').eq('user_id', user.id).single()
-  if (!settings?.anthropic_api_key) {
-    return NextResponse.json({ error: 'Anthropic API key not configured.' }, { status: 400 })
-  }
+    .from('user_settings').select('anthropic_api_key, openai_api_key, gemini_api_key, model').eq('user_id', user.id).single()
 
   const [{ data: projectPrompt }, { data: systemPrompt }, { data: charter }, { data: sources }] =
     await Promise.all([
@@ -131,15 +128,17 @@ Mark unknowns as [TBD]. Be specific and actionable. Requirements must be SMART.
 `.trim()
 
   try {
-    const anthropic = createAnthropicClient(settings.anthropic_api_key)
-    const message = await anthropic.messages.create({
-      model: settings.model ?? 'claude-sonnet-4-6',
-      max_tokens: 6000,
-      system: systemInstruction,
-      messages: [{ role: 'user', content: userMessage }],
+    const content = await generateText({
+      model: settings?.model ?? 'anthropic:claude-sonnet-4-6',
+      systemPrompt: systemInstruction,
+      userPrompt: userMessage,
+      maxTokens: 6000,
+      apiKeys: {
+        anthropic: settings?.anthropic_api_key,
+        openai: settings?.openai_api_key,
+        gemini: settings?.gemini_api_key,
+      },
     })
-
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
 
     const { data: existing } = await supabase
       .from('prd').select('version').eq('project_id', project_id)
@@ -159,6 +158,6 @@ Mark unknowns as [TBD]. Be specific and actionable. Requirements must be SMART.
 
     return NextResponse.json(prd, { status: 201 })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Generation failed' }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'AI generation failed' }, { status: 400 })
   }
 }

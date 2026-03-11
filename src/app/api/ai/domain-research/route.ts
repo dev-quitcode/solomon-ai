@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAnthropicClient } from '@/lib/ai/client'
+import { generateText } from '@/lib/ai/providers'
 
 async function jinaSearch(query: string): Promise<string> {
   const url = `https://s.jina.ai/${encodeURIComponent(query)}`
@@ -32,13 +32,9 @@ export async function POST(request: Request) {
 
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('anthropic_api_key, model')
+    .select('anthropic_api_key, openai_api_key, gemini_api_key, model')
     .eq('user_id', user.id)
     .single()
-
-  if (!settings?.anthropic_api_key) {
-    return NextResponse.json({ error: 'Anthropic API key not configured. Add it in Settings.' }, { status: 400 })
-  }
 
   const industry = industryOverride?.trim() || project.industry
   const company  = companyOverride?.trim()  || project.client_name
@@ -68,15 +64,7 @@ export async function POST(request: Request) {
       .map((text, i) => `### Search: ${searchQueries[i]}\n${text.slice(0, 3000)}`)
       .join('\n\n---\n\n')
 
-    const anthropic = createAnthropicClient(settings.anthropic_api_key)
-
-    const message = await anthropic.messages.create({
-      model: settings.model ?? 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a domain research specialist preparing context for a software project requirements session.
+    const userPrompt = `You are a domain research specialist preparing context for a software project requirements session.
 
 Project context: ${context}
 
@@ -93,12 +81,19 @@ Write a clear, structured summary covering:
 5. **Regulatory & Compliance Considerations** — relevant regulations or standards
 6. **Key Terminology** — domain-specific terms a BA should know
 
-Keep it factual and relevant to software development requirements gathering. Format with markdown headings.`,
-        },
-      ],
-    })
+Keep it factual and relevant to software development requirements gathering. Format with markdown headings.`
 
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
+    const content = await generateText({
+      model: settings?.model ?? 'anthropic:claude-sonnet-4-6',
+      systemPrompt: '',
+      userPrompt,
+      maxTokens: 2000,
+      apiKeys: {
+        anthropic: settings?.anthropic_api_key,
+        openai: settings?.openai_api_key,
+        gemini: settings?.gemini_api_key,
+      },
+    })
 
     const { data: source, error } = await supabase
       .from('data_sources')
@@ -121,9 +116,6 @@ Keep it factual and relevant to software development requirements gathering. For
     return NextResponse.json(source, { status: 201 })
 
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Research failed' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'AI generation failed' }, { status: 400 })
   }
 }

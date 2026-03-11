@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAnthropicClient } from '@/lib/ai/client'
+import { generateText } from '@/lib/ai/providers'
 import { truncateContent } from '@/lib/utils/files'
 
 export async function POST(request: Request) {
@@ -24,13 +24,9 @@ export async function POST(request: Request) {
   // Get user settings
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('anthropic_api_key, model')
+    .select('anthropic_api_key, openai_api_key, gemini_api_key, model')
     .eq('user_id', user.id)
     .single()
-
-  if (!settings?.anthropic_api_key) {
-    return NextResponse.json({ error: 'Anthropic API key not configured. Add it in Settings.' }, { status: 400 })
-  }
 
   // Resolve prompt: project override → system default
   const { data: projectPrompt } = await supabase
@@ -161,16 +157,17 @@ Use a professional, formal tone appropriate for a project initiation document.
 `.trim()
 
   try {
-    const anthropic = createAnthropicClient(settings.anthropic_api_key)
-
-    const message = await anthropic.messages.create({
-      model: settings.model ?? 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      system: systemInstruction,
-      messages: [{ role: 'user', content: userMessage }],
+    const content = await generateText({
+      model: settings?.model ?? 'anthropic:claude-sonnet-4-6',
+      systemPrompt: systemInstruction,
+      userPrompt: userMessage,
+      maxTokens: 4000,
+      apiKeys: {
+        anthropic: settings?.anthropic_api_key,
+        openai: settings?.openai_api_key,
+        gemini: settings?.gemini_api_key,
+      },
     })
-
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
 
     // Get current version count
     const { data: existing } = await supabase
@@ -201,9 +198,6 @@ Use a professional, formal tone appropriate for a project initiation document.
 
     return NextResponse.json(charter, { status: 201 })
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Generation failed' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'AI generation failed' }, { status: 400 })
   }
 }
