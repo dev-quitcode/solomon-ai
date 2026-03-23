@@ -76,11 +76,6 @@ export default function ProfilePage() {
     if (params.get('github') === 'connected') {
       toast.success('GitHub connected successfully')
       window.history.replaceState({}, '', '/profile')
-      // Reload profile to get updated github_username
-      fetch('/api/profile').then(r => r.ok ? r.json() : null).then(data => {
-        if (data?.github_username) setGithubUsername(data.github_username)
-        if (data?.github_connected_at) setGithubConnectedAt(data.github_connected_at)
-      })
     }
     if (params.get('error') === 'github_auth_failed') {
       toast.error('GitHub authorization failed. Please try again.')

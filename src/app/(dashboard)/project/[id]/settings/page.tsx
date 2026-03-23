@@ -71,6 +71,8 @@ export default function ProjectSettingsPage() {
       if (profile) {
         setCurrentUserGithubUsername(profile.github_username ?? null)
       }
+    }).catch(() => {
+      // silently ignore — individual fetch guards already handle non-2xx
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -107,19 +109,22 @@ export default function ProjectSettingsPage() {
         body: JSON.stringify({ repoName: initRepoName, isPrivate: initIsPrivate }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) {
+        const message = data.error ?? 'Export failed'
+        if (res.status === 422) {
+          setInitError(message)
+        } else {
+          toast.error(message)
+        }
+        return
+      }
       setGithubRepoUrl(data.repoUrl)
       setGithubExportedAt(new Date().toISOString())
       setGithubSyncError(null)
       setShowInitModal(false)
       toast.success('Exported to GitHub')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Export failed'
-      if (message.includes('already exists')) {
-        setInitError(message)
-      } else {
-        toast.error(message)
-      }
+      toast.error(err instanceof Error ? err.message : 'Export failed')
     } finally {
       setInitLoading(false)
     }
@@ -343,7 +348,7 @@ export default function ProjectSettingsPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => setShowInitModal(false)}
+                              onClick={() => { setShowInitModal(false); setInitError(null) }}
                               disabled={initLoading}
                             >
                               Cancel
@@ -351,7 +356,7 @@ export default function ProjectSettingsPage() {
                           </div>
                         </div>
                       ) : (
-                        <Button size="sm" onClick={() => setShowInitModal(true)}>
+                        <Button size="sm" onClick={() => { setShowInitModal(true); setInitError(null) }}>
                           <Github className="h-4 w-4 mr-2" />
                           Create GitHub Repository
                         </Button>
