@@ -41,6 +41,7 @@ export default function ProjectSettingsPage() {
   const [initIsPrivate, setInitIsPrivate] = useState(false)
   const [initLoading, setInitLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [initError, setInitError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -113,7 +114,12 @@ export default function ProjectSettingsPage() {
       setShowInitModal(false)
       toast.success('Exported to GitHub')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Export failed')
+      const message = err instanceof Error ? err.message : 'Export failed'
+      if (message.includes('already exists')) {
+        setInitError(message)
+      } else {
+        toast.error(message)
+      }
     } finally {
       setInitLoading(false)
     }
@@ -237,6 +243,12 @@ export default function ProjectSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!isOwner ? (
+                <p className="text-sm text-muted-foreground">
+                  GitHub settings are only visible to the project owner.
+                </p>
+              ) : (
+              <>
               {githubSyncError && (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -249,12 +261,7 @@ export default function ProjectSettingsPage() {
                   </Button>
                 </div>
               )}
-
-              {!isOwner ? (
-                <p className="text-sm text-muted-foreground">
-                  GitHub settings are only visible to the project owner.
-                </p>
-              ) : githubRepoUrl ? (
+              {githubRepoUrl ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -288,11 +295,17 @@ export default function ProjectSettingsPage() {
               ) : (
                 <div className="space-y-3">
                   {!currentUserGithubUsername ? (
-                    <p className="text-sm text-muted-foreground">
-                      Connect your GitHub account in{' '}
-                      <a href="/profile" className="underline underline-offset-2">Profile</a>{' '}
-                      to export this project to GitHub.
-                    </p>
+                    <div className="space-y-2">
+                      <Button size="sm" disabled title="Connect GitHub in your profile first">
+                        <Github className="h-4 w-4 mr-2" />
+                        Create GitHub Repository
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Connect your GitHub account in{' '}
+                        <a href="/profile" className="underline underline-offset-2">Profile</a>{' '}
+                        first.
+                      </p>
+                    </div>
                   ) : (
                     <>
                       {showInitModal ? (
@@ -302,9 +315,12 @@ export default function ProjectSettingsPage() {
                             <Input
                               id="repo-name"
                               value={initRepoName}
-                              onChange={e => setInitRepoName(e.target.value)}
+                              onChange={e => { setInitRepoName(e.target.value); setInitError(null) }}
                               placeholder="my-project"
                             />
+                            {initError && (
+                              <p className="text-xs text-destructive">{initError}</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <input
@@ -343,6 +359,8 @@ export default function ProjectSettingsPage() {
                     </>
                   )}
                 </div>
+              )}
+              </>
               )}
             </CardContent>
           </Card>
