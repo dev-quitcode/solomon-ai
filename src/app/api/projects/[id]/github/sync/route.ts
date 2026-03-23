@@ -113,15 +113,30 @@ export async function POST(_req: Request, { params }: Params) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    const message = err instanceof GitHubError ? err.message : 'Sync failed'
-    if (err instanceof GitHubError && err.status === 401) {
-      await adminClient
-        .from('profiles')
-        .update({ github_access_token: null, github_username: null, github_connected_at: null })
-        .eq('user_id', project.user_id)
+    let message: string
+    let httpStatus: number
+
+    if (err instanceof GitHubError) {
+      if (err.status === 401) {
+        await adminClient
+          .from('profiles')
+          .update({ github_access_token: null, github_username: null, github_connected_at: null })
+          .eq('user_id', project.user_id)
+        message = 'GitHub connection lost — reconnect in Profile'
+        httpStatus = 401
+      } else if (err.status === 404) {
+        message = 'GitHub repo not found. Recreate from Project Settings.'
+        httpStatus = 404
+      } else {
+        message = err.message
+        httpStatus = err.status
+      }
+    } else {
+      message = 'Sync failed'
+      httpStatus = 500
     }
-    await supabase.from('projects').update({ github_sync_error: message }).eq('id', id)
-    const status = err instanceof GitHubError ? err.status : 500
-    return NextResponse.json({ error: message }, { status })
+
+    await adminClient.from('projects').update({ github_sync_error: message }).eq('id', id)
+    return NextResponse.json({ error: message }, { status: httpStatus })
   }
 }
