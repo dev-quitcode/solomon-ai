@@ -59,9 +59,17 @@ export default function PRDPage() {
         body: JSON.stringify({ content: editContent }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
-      setPrd(await res.json())
+      const saved = await res.json()
+      setPrd(saved)
       setEditing(false)
       toast.success('PRD saved')
+      if ('githubSyncError' in saved) {
+        if (saved.githubSyncError === null) {
+          toast.success('Synced to GitHub')
+        } else {
+          toast.error(`GitHub sync failed: ${saved.githubSyncError}`)
+        }
+      }
     } catch { toast.error('Failed to save') }
     finally { setSaving(false) }
   }
@@ -96,8 +104,16 @@ export default function PRDPage() {
         body: JSON.stringify({ status: 'approved' }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
-      setPrd(await res.json())
+      const approved = await res.json()
+      setPrd(approved)
       toast.success('PRD approved — Epics generation unlocked')
+      if ('githubSyncError' in approved) {
+        if (approved.githubSyncError === null) {
+          toast.success('Synced to GitHub')
+        } else {
+          toast.error(`GitHub sync failed: ${approved.githubSyncError}`)
+        }
+      }
     } catch { toast.error('Failed to approve') }
     finally { setApproving(false) }
   }

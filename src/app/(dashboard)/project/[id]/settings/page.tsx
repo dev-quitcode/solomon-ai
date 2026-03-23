@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Sliders } from 'lucide-react'
+import { Users, Sliders, Github, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react'
 import ProjectMembersPanel from '@/components/project/ProjectMembersPanel'
 import type { PromptStage } from '@/types'
 
@@ -30,12 +31,24 @@ export default function ProjectSettingsPage() {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<PromptStage | null>(null)
+  const [isOwner, setIsOwner] = useState(false)
+  const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null)
+  const [githubExportedAt, setGithubExportedAt] = useState<string | null>(null)
+  const [githubSyncError, setGithubSyncError] = useState<string | null>(null)
+  const [currentUserGithubUsername, setCurrentUserGithubUsername] = useState<string | null>(null)
+  const [showInitModal, setShowInitModal] = useState(false)
+  const [initRepoName, setInitRepoName] = useState('')
+  const [initIsPrivate, setInitIsPrivate] = useState(false)
+  const [initLoading, setInitLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/project-prompts?project_id=${id}`).then(r => r.json()),
       fetch('/api/system-prompts').then(r => r.json()),
-    ]).then(([projectPrompts, sysPrompts]) => {
+      fetch(`/api/projects/${id}`).then(r => r.ok ? r.json() : null),
+      fetch('/api/profile').then(r => r.ok ? r.json() : null),
+    ]).then(([projectPrompts, sysPrompts, project, profile]) => {
       if (Array.isArray(projectPrompts)) {
         const map: Record<string, string> = {}
         projectPrompts.forEach((p: { stage: string; content: string }) => { map[p.stage] = p.content })
@@ -45,6 +58,17 @@ export default function ProjectSettingsPage() {
         const map: Record<string, string> = {}
         sysPrompts.forEach((p: { stage: string; content: string }) => { map[p.stage] = p.content })
         setSystemDefaults(prev => ({ ...prev, ...map }))
+      }
+      if (project) {
+        // project is returned only for the owner (GET route requires user_id match)
+        setIsOwner(true)
+        setGithubRepoUrl(project.github_repo_url ?? null)
+        setGithubExportedAt(project.github_exported_at ?? null)
+        setGithubSyncError(project.github_sync_error ?? null)
+        setInitRepoName(project.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') ?? '')
+      }
+      if (profile) {
+        setCurrentUserGithubUsername(profile.github_username ?? null)
       }
     }).finally(() => setLoading(false))
   }, [id])
@@ -73,6 +97,46 @@ export default function ProjectSettingsPage() {
     toast.success('Reset to system default')
   }
 
+  async function handleInitGitHub() {
+    setInitLoading(true)
+    try {
+      const res = await fetch(`/api/projects/${id}/github/init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoName: initRepoName, isPrivate: initIsPrivate }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setGithubRepoUrl(data.repoUrl)
+      setGithubExportedAt(new Date().toISOString())
+      setGithubSyncError(null)
+      setShowInitModal(false)
+      toast.success('Exported to GitHub')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setInitLoading(false)
+    }
+  }
+
+  async function handleSyncGitHub() {
+    setSyncing(true)
+    try {
+      const res = await fetch(`/api/projects/${id}/github/sync`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setGithubExportedAt(new Date().toISOString())
+      setGithubSyncError(null)
+      toast.success('Synced to GitHub')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sync failed'
+      setGithubSyncError(message)
+      toast.error(`GitHub sync failed: ${message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (loading) return <div className="p-8 text-muted-foreground text-sm">Loading...</div>
 
   return (
@@ -91,6 +155,9 @@ export default function ProjectSettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="prompts" className="gap-1.5">
             <Sliders className="h-3.5 w-3.5" />Prompts
+          </TabsTrigger>
+          <TabsTrigger value="github" className="gap-1.5">
+            <Github className="h-3.5 w-3.5" />GitHub
           </TabsTrigger>
         </TabsList>
 
@@ -157,6 +224,126 @@ export default function ProjectSettingsPage() {
                   </TabsContent>
                 ))}
               </Tabs>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="github">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">GitHub Repository</CardTitle>
+              <CardDescription>
+                Export this project's requirements to a GitHub repository. Syncs automatically on every save.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {githubSyncError && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium">GitHub sync failed</p>
+                    <p className="mt-0.5 text-xs">{githubSyncError}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleSyncGitHub} disabled={syncing}>
+                    {syncing ? 'Retrying...' : 'Retry'}
+                  </Button>
+                </div>
+              )}
+
+              {!isOwner ? (
+                <p className="text-sm text-muted-foreground">
+                  GitHub settings are only visible to the project owner.
+                </p>
+              ) : githubRepoUrl ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <a
+                        href={githubRepoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-sm font-medium hover:underline"
+                      >
+                        <Github className="h-4 w-4" />
+                        {githubRepoUrl.replace('https://github.com/', '')}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                      {githubExportedAt && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Last synced: {new Date(githubExportedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSyncGitHub}
+                      disabled={syncing}
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+                      {syncing ? 'Syncing...' : 'Sync now'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {!currentUserGithubUsername ? (
+                    <p className="text-sm text-muted-foreground">
+                      Connect your GitHub account in{' '}
+                      <a href="/profile" className="underline underline-offset-2">Profile</a>{' '}
+                      to export this project to GitHub.
+                    </p>
+                  ) : (
+                    <>
+                      {showInitModal ? (
+                        <div className="space-y-3 rounded-lg border p-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="repo-name">Repository name</Label>
+                            <Input
+                              id="repo-name"
+                              value={initRepoName}
+                              onChange={e => setInitRepoName(e.target.value)}
+                              placeholder="my-project"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="repo-private"
+                              checked={initIsPrivate}
+                              onChange={e => setInitIsPrivate(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <Label htmlFor="repo-private" className="font-normal">Private repository</Label>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={handleInitGitHub}
+                              disabled={initLoading || !initRepoName.trim()}
+                            >
+                              {initLoading ? 'Creating...' : 'Create repository'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setShowInitModal(false)}
+                              disabled={initLoading}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button size="sm" onClick={() => setShowInitModal(true)}>
+                          <Github className="h-4 w-4 mr-2" />
+                          Create GitHub Repository
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

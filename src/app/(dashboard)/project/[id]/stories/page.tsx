@@ -77,6 +77,13 @@ export default function StoriesPage() {
     if (res.ok) {
       const updated = await res.json()
       setStories(prev => prev.map(s => s.id === storyId ? updated : s))
+      if ('githubSyncError' in updated) {
+        if (updated.githubSyncError === null) {
+          toast.success('Synced to GitHub')
+        } else {
+          toast.error(`GitHub sync failed: ${updated.githubSyncError}`)
+        }
+      }
     }
   }
 

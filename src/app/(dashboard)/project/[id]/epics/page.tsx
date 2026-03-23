@@ -96,6 +96,13 @@ export default function EpicsPage() {
     if (res.ok) {
       const updated = await res.json()
       setEpics(prev => prev.map(e => e.id === epicId ? updated : e))
+      if ('githubSyncError' in updated) {
+        if (updated.githubSyncError === null) {
+          toast.success('Synced to GitHub')
+        } else {
+          toast.error(`GitHub sync failed: ${updated.githubSyncError}`)
+        }
+      }
     }
   }
 

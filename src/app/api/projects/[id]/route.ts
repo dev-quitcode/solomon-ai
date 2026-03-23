@@ -7,15 +7,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data, error } = await supabase
+  const { data: project, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('id, name, github_repo_url, github_exported_at, github_sync_error, user_id')
     .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('user_id', user.id)   // owner-only — intentional
     .single()
+  if (error || !project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (error) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(data)
+  return NextResponse.json(project)
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
