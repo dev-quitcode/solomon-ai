@@ -113,6 +113,9 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     status: 'setup',
     created_at: '2024-01-15T10:00:00Z',
     updated_at: '2024-01-15T10:00:00Z',
+    github_repo_url: null,
+    github_exported_at: null,
+    github_sync_error: null,
     ...overrides,
   }
 }

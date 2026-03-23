@@ -5,6 +5,9 @@ export interface Profile {
   role: UserRole
   full_name: string | null
   created_at: string
+  github_access_token: string | null
+  github_username: string | null
+  github_connected_at: string | null
 }
 
 export type ProjectType = 'greenfield' | 'brownfield'
@@ -22,6 +25,9 @@ export interface Project {
   status: ProjectStatus
   created_at: string
   updated_at: string
+  github_repo_url: string | null
+  github_exported_at: string | null
+  github_sync_error: string | null
 }
 
 export type SourceType =
@@ -115,6 +121,7 @@ export interface PRD {
   status: DocumentStatus
   created_at: string
   updated_at: string
+  github_file_sha: string | null
 }
 
 export interface CurrentState {
@@ -150,6 +157,7 @@ export interface Epic {
   status: ItemStatus
   created_at: string
   updated_at: string
+  github_milestone_number: number | null
 }
 
 export interface UserStory {
@@ -169,6 +177,7 @@ export interface UserStory {
   status: ItemStatus
   created_at: string
   updated_at: string
+  github_issue_number: number | null
 }
 
 export type PromptStage = 'charter' | 'prd' | 'epics' | 'stories' | 'domain_research'
