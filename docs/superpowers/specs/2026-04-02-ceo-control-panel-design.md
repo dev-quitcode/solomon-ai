@@ -12,6 +12,7 @@ A standalone internal tool for a CEO and one assistant to manage strategic goal 
 - **Database:** Supabase (Postgres + Row Level Security + Auth)
 - **Auth:** Email/password — two accounts (`ceo@` and `assistant@`), roles stored in a `profiles` table (`role: 'ceo' | 'assistant'`)
 - **Deployment:** Standalone app, separate from Solomon
+- **RLS:** Supabase Row Level Security enforces role restrictions at the database level — not just the UI. All tables have RLS enabled. Read policies allow both roles; write policies (INSERT/UPDATE/DELETE) are restricted to the `assistant` role, except `notes` which allows both roles to insert.
 
 ### Roles
 
@@ -58,7 +59,7 @@ A standalone internal tool for a CEO and one assistant to manage strategic goal 
 | `created_by` | uuid | → `auth.users.id` |
 | `created_at` | timestamptz | |
 
-On save: updates parent `goals.status`, `goals.metric_current`, `goals.next_review_at`, `goals.updated_at`.
+On save: the API route (application layer, not a DB trigger) updates the parent `goals` row — setting `status`, `metric_current`, `next_review_at`, and `updated_at` to match the check-in values.
 
 ### `corrections`
 
@@ -107,6 +108,7 @@ On save: updates parent `goals.status`, `goals.metric_current`, `goals.next_revi
 - Counter per level, auto-incremented, zero-padded to 3 digits
 - IDs are permanent — never reassigned if a node is deleted
 - Displayed on every card and in the detail panel for easy verbal reference ("fix T-007")
+- Implementation: a `readable_id_sequences` table with one row per level (`level int, next_val int`). On node creation, the API increments `next_val` and formats the ID (e.g., `G-` + zero-pad). This runs inside the same transaction as the `goals` insert.
 
 ---
 
@@ -184,7 +186,7 @@ Fixed 280px panel on the right. Hidden by default, slides in on node click. Cont
 | Route | Description |
 |-------|-------------|
 | `/` | Main canvas — all goals as trees |
-| `/settings` | Hierarchy config (level labels), user management |
+| `/settings` | Hierarchy config (level labels) + read-only display of the two user accounts (no in-app password changes) |
 | `/login` | Email/password auth |
 
 No other pages needed. The canvas is the entire app.
