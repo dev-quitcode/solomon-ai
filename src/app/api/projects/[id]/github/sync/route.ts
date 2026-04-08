@@ -49,6 +49,19 @@ export async function POST(_req: Request, { params }: Params) {
   }
 
   try {
+    // Sync Charter
+    const { data: charter } = await supabase
+      .from('project_charter')
+      .select('id, content, github_file_sha')
+      .eq('project_id', id)
+      .single()
+    if (charter?.content) {
+      const { sha } = await pushFile(
+        token, repoFullName, 'docs/Charter.md', charter.content, charter.github_file_sha ?? undefined
+      )
+      await supabase.from('project_charter').update({ github_file_sha: sha }).eq('id', charter.id)
+    }
+
     // Sync PRD
     const { data: prd } = await supabase
       .from('prd')

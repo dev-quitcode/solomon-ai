@@ -65,6 +65,24 @@ export async function POST(request: Request, { params }: Params) {
       await supabase.from('projects').update({ github_repo_url: repoUrl }).eq('id', id)
     }
 
+    // Push Charter (if content exists)
+    const { data: charter } = await supabase
+      .from('project_charter')
+      .select('id, content, github_file_sha')
+      .eq('project_id', id)
+      .single()
+    if (charter?.content) {
+      const { sha } = await pushFile(
+        token,
+        repoFullName,
+        'docs/Charter.md',
+        charter.content,
+        charter.github_file_sha ?? undefined,
+        'docs: add Project Charter'
+      )
+      await supabase.from('project_charter').update({ github_file_sha: sha }).eq('id', charter.id)
+    }
+
     // Push PRD (if content exists)
     const { data: prd } = await supabase
       .from('prd')

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { syncCharterToGitHub } from '@/lib/github-sync'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -45,6 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .eq('user_id', user.id)
       .eq('status', 'charter')
   }
+
+  syncCharterToGitHub(charter.project_id)
 
   return NextResponse.json(data)
 }

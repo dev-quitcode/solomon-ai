@@ -64,6 +64,37 @@ async function clearError(projectId: string): Promise<void> {
     .eq('id', projectId)
 }
 
+export async function syncCharterToGitHub(projectId: string): Promise<GitHubSyncResult> {
+  const ctx = await getOwnerToken(projectId)
+  if (!ctx) return {} // silent skip
+
+  const supabase = await createClient()
+  try {
+    const { data: charter } = await supabase
+      .from('project_charter')
+      .select('id, content, github_file_sha')
+      .eq('project_id', projectId)
+      .single()
+    if (!charter?.content) return {}
+
+    const { sha } = await pushFile(
+      ctx.token,
+      ctx.repoFullName,
+      'docs/Charter.md',
+      charter.content,
+      charter.github_file_sha ?? undefined
+    )
+    await supabase.from('project_charter').update({ github_file_sha: sha }).eq('id', charter.id)
+    await clearError(projectId)
+    return { githubSyncError: null }
+  } catch (err) {
+    const message = err instanceof GitHubError ? err.message : 'GitHub sync failed'
+    if (err instanceof GitHubError && err.status === 401) await handleTokenRevoked(ctx.ownerId)
+    await saveError(projectId, message)
+    return { githubSyncError: message }
+  }
+}
+
 export async function syncPrdToGitHub(projectId: string): Promise<GitHubSyncResult> {
   const ctx = await getOwnerToken(projectId)
   if (!ctx) return {} // silent skip
