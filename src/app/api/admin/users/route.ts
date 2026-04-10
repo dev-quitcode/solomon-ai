@@ -45,8 +45,11 @@ export async function POST(request: Request) {
   const { email } = await request.json()
   if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
+  const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://solomon.quitcode.com'
   const adminClient = await createAdminClient()
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email.trim())
+  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email.trim(), {
+    redirectTo: `${appUrl}/auth/reset-password`,
+  })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   return NextResponse.json({ user_id: data.user.id, email: data.user.email })
