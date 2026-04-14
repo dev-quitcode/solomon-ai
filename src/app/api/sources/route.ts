@@ -25,6 +25,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  try {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -103,6 +104,13 @@ export async function POST(request: Request) {
   embedSource(supabase, data.id, extractedContent, user.id)
 
   return NextResponse.json(data, { status: 201 })
+  } catch (err) {
+    console.error('[POST /api/sources]', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 }
+    )
+  }
 }
 
 async function handleFileUpload(
