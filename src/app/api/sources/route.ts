@@ -37,8 +37,16 @@ export async function POST(request: Request) {
   }
 
   // JSON body (text, website, questionnaire)
-  const body = await request.json()
-  const { project_id, type, title, content, url, answers } = body
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+  const { project_id, type, title, content, url, answers } = body as {
+    project_id?: string; type?: string; title?: string
+    content?: string; url?: string; answers?: Record<string, string>
+  }
 
   if (!project_id || !type) {
     return NextResponse.json({ error: 'project_id and type required' }, { status: 400 })

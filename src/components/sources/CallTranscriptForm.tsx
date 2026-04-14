@@ -40,7 +40,7 @@ export default function CallTranscriptForm({ projectId, onAdded }: Props) {
         formData.append('type', 'call_transcript')
         formData.append('title', title || file!.name)
         const res = await fetch('/api/sources', { method: 'POST', body: formData })
-        if (!res.ok) throw new Error((await res.json()).error)
+        if (!res.ok) { const t = await res.text(); let m = 'Upload failed'; try { m = JSON.parse(t).error || m } catch {} throw new Error(m) }
         source = await res.json()
       } else {
         const res = await fetch('/api/sources', {
@@ -53,7 +53,7 @@ export default function CallTranscriptForm({ projectId, onAdded }: Props) {
             content: text,
           }),
         })
-        if (!res.ok) throw new Error((await res.json()).error)
+        if (!res.ok) { const t = await res.text(); let m = 'Upload failed'; try { m = JSON.parse(t).error || m } catch {} throw new Error(m) }
         source = await res.json()
       }
 
