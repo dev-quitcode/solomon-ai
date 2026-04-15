@@ -90,7 +90,10 @@ export async function POST(request: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[POST /api/sources] insert error', error)
+    return NextResponse.json({ error: error.message || error.code || JSON.stringify(error) }, { status: 500 })
+  }
 
   // Advance project status to 'sources' if still at 'setup'
   await supabase
@@ -190,7 +193,10 @@ async function handleFileUpload(
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[handleFileUpload] insert error', error)
+    return NextResponse.json({ error: error.message || error.code || JSON.stringify(error) }, { status: 500 })
+  }
 
   await supabase
     .from('projects')
