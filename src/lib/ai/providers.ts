@@ -24,10 +24,11 @@ export async function generateText(options: GenerateOptions): Promise<string> {
   const { provider, modelId } = parseModel(options.model)
 
   if (provider === 'anthropic') {
-    if (!options.apiKeys.anthropic) {
+    const key = options.apiKeys.anthropic || process.env.ANTHROPIC_API_KEY
+    if (!key) {
       throw new Error('No API key configured for Anthropic. Add it in Settings.')
     }
-    const client = new Anthropic({ apiKey: options.apiKeys.anthropic })
+    const client = new Anthropic({ apiKey: key })
     const message = await client.messages.create({
       model: modelId,
       max_tokens: options.maxTokens,
@@ -38,10 +39,11 @@ export async function generateText(options: GenerateOptions): Promise<string> {
   }
 
   if (provider === 'openai') {
-    if (!options.apiKeys.openai) {
+    const key = options.apiKeys.openai || process.env.OPENAI_API_KEY
+    if (!key) {
       throw new Error('No API key configured for OpenAI. Add it in Settings.')
     }
-    const client = new OpenAI({ apiKey: options.apiKeys.openai })
+    const client = new OpenAI({ apiKey: key })
     const completion = await client.chat.completions.create({
       model: modelId,
       max_tokens: options.maxTokens,
@@ -54,10 +56,11 @@ export async function generateText(options: GenerateOptions): Promise<string> {
   }
 
   if (provider === 'google') {
-    if (!options.apiKeys.gemini) {
+    const key = options.apiKeys.gemini || process.env.GEMINI_API_KEY
+    if (!key) {
       throw new Error('No API key configured for Google Gemini. Add it in Settings.')
     }
-    const genAI = new GoogleGenerativeAI(options.apiKeys.gemini)
+    const genAI = new GoogleGenerativeAI(key)
     const geminiModel = genAI.getGenerativeModel({
       model: modelId,
       systemInstruction: options.systemPrompt || undefined,
