@@ -54,6 +54,10 @@ export default function ProfilePage() {
   const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' })
   const [savingPassword, setSavingPassword] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
+  const [apiKeys, setApiKeys] = useState({ anthropic_api_key: '', openai_api_key: '', gemini_api_key: '' })
+  const [loadingKeys, setLoadingKeys] = useState(true)
+  const [savingKeys, setSavingKeys] = useState(false)
+
   useEffect(() => {
     fetch('/api/profile')
       .then(r => r.ok ? r.json() : null)
@@ -64,6 +68,39 @@ export default function ProfilePage() {
       .catch(() => null)
       .finally(() => setLoadingProfile(false))
   }, [])
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setApiKeys({
+          anthropic_api_key: data.anthropic_api_key ?? '',
+          openai_api_key: data.openai_api_key ?? '',
+          gemini_api_key: data.gemini_api_key ?? '',
+        })
+      })
+      .catch(() => null)
+      .finally(() => setLoadingKeys(false))
+  }, [])
+
+  async function handleSaveApiKeys(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingKeys(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiKeys),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success('API keys saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save API keys')
+    } finally {
+      setSavingKeys(false)
+    }
+  }
 
   async function handleSaveName(e: React.FormEvent) {
     e.preventDefault()
@@ -235,6 +272,51 @@ export default function ProfilePage() {
                 disabled={savingPassword || !passwordForm.current || !passwordForm.next || !passwordForm.confirm || loadingProfile}
               >
                 {savingPassword ? 'Updating...' : 'Update password'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* API Keys */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">AI API Keys</CardTitle>
+            <CardDescription>Your personal API keys. Leave blank to use the shared system key.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveApiKeys} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="anthropic_key">Anthropic API Key</Label>
+                <KeyInput
+                  id="anthropic_key"
+                  placeholder="sk-ant-..."
+                  value={apiKeys.anthropic_api_key}
+                  onChange={v => setApiKeys(k => ({ ...k, anthropic_api_key: v }))}
+                  disabled={loadingKeys}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="openai_key">OpenAI API Key</Label>
+                <KeyInput
+                  id="openai_key"
+                  placeholder="sk-..."
+                  value={apiKeys.openai_api_key}
+                  onChange={v => setApiKeys(k => ({ ...k, openai_api_key: v }))}
+                  disabled={loadingKeys}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="gemini_key">Google Gemini API Key</Label>
+                <KeyInput
+                  id="gemini_key"
+                  placeholder="AIza..."
+                  value={apiKeys.gemini_api_key}
+                  onChange={v => setApiKeys(k => ({ ...k, gemini_api_key: v }))}
+                  disabled={loadingKeys}
+                />
+              </div>
+              <Button type="submit" size="sm" disabled={savingKeys || loadingKeys}>
+                {savingKeys ? 'Saving...' : 'Save API keys'}
               </Button>
             </form>
           </CardContent>
