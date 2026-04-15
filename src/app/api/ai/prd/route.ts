@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   const adminClient = await createAdminClient()
   const { data: settings } = await adminClient
-    .from('user_settings').select('anthropic_api_key, openai_api_key, gemini_api_key, model').eq('user_id', user.id).single()
+    .from('user_settings').select('*').eq('user_id', user.id).single()
 
   const [{ data: projectPrompt }, { data: systemPrompt }, { data: charter }, { data: sources }] =
     await Promise.all([
